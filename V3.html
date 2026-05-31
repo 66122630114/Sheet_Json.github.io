@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guitar Note Trainer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d0d0f; --surface:#161619; --surface2:#1e1e23;
+    --border:#2a2a32; --border2:#3a3a46;
+    --accent:#e8ff47; --accent2:#47ffb8; --accent3:#ff6b47;
+    --text:#f0f0f5; --text2:#8888a0; --text3:#555568;
+    --correct:#47ffb8; --wrong:#ff6b47;
+    --mono:'Space Mono',monospace; --sans:'Sarabun',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 40% at 20% 10%,rgba(232,255,71,.04) 0%,transparent 70%),radial-gradient(ellipse 50% 50% at 80% 90%,rgba(71,255,184,.04) 0%,transparent 70%);pointer-events:none;z-index:0;}
+  .app{width:100%;max-width:520px;position:relative;z-index:1;}
+
+  /* header */
+  .header{margin-bottom:1.5rem;display:flex;align-items:baseline;gap:12px;}
+  .header-title{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;}
+  .header-sub{font-size:13px;color:var(--text3);}
+
+  /* mode tabs */
+  .mode-row{display:flex;gap:0;margin-bottom:1.25rem;border:0.5px solid var(--border2);border-radius:4px;overflow:hidden;}
+  .mode-btn{flex:1;padding:8px 6px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:transparent;color:var(--text3);border:none;cursor:pointer;transition:all .15s;border-right:0.5px solid var(--border2);}
+  .mode-btn:last-child{border-right:none;}
+  .mode-btn:hover{color:var(--text2);background:var(--surface2);}
+  .mode-btn.active{background:var(--accent);color:var(--bg);}
+  .mode-btn.soon{color:var(--text3);cursor:default;opacity:.5;}
+
+  /* note display */
+  .note-display{background:var(--surface);border:0.5px solid var(--border);border-radius:4px;padding:1.75rem 2rem 1.5rem;text-align:center;margin-bottom:1rem;position:relative;overflow:hidden;}
+  .note-display::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 100%,rgba(232,255,71,.03) 0%,transparent 70%);pointer-events:none;}
+  .note-prompt{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--text3);text-transform:uppercase;margin-bottom:.6rem;}
+  .note-big{font-family:var(--mono);font-size:90px;font-weight:700;line-height:1;color:var(--text);transition:color .3s;letter-spacing:-.02em;position:relative;z-index:1;}
+  .note-big.correct{color:var(--correct);}
+  .note-alias{font-size:13px;color:var(--text3);font-family:var(--mono);margin-top:8px;letter-spacing:.06em;min-height:20px;}
+
+  /* fretboard progress (mode 2) */
+  .fb-progress{background:var(--surface);border:0.5px solid var(--border);border-radius:4px;padding:.875rem 1rem;margin-bottom:1rem;}
+  .fb-prog-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .fb-prog-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;}
+  .fb-prog-count{font-family:var(--mono);font-size:12px;color:var(--text2);}
+  .fb-dots{display:flex;flex-wrap:wrap;gap:5px;}
+  .fb-dot{width:28px;height:28px;border-radius:3px;border:0.5px solid var(--border2);background:var(--surface2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;color:var(--text3);transition:all .3s;line-height:1.2;}
+  .fb-dot.done{background:rgba(71,255,184,.15);border-color:var(--correct);color:var(--correct);}
+  .fb-dot.current{background:rgba(232,255,71,.1);border-color:var(--accent);color:var(--accent);animation:pulse-border 1s infinite;}
+  @keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(232,255,71,.3);}50%{box-shadow:0 0 0 3px rgba(232,255,71,.1);}}
+
+  /* fretboard svg */
+  .fretboard-wrap{background:var(--surface);border:0.5px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:1rem;overflow-x:auto;}
+  .fretboard-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;margin-bottom:10px;}
+  .fretboard-svg{display:block;width:100%;}
+
+  /* waveform */
+  .waveform{height:32px;display:flex;align-items:center;justify-content:center;gap:3px;margin-bottom:1rem;}
+  .wv-bar{width:3px;background:var(--border2);border-radius:2px;min-height:3px;transition:height .07s,background .3s;}
+  .wv-bar.active{background:var(--accent2);}
+
+  /* detected */
+  .detected-panel{background:var(--surface);border:0.5px solid var(--border);border-radius:4px;padding:1rem 1.25rem;display:grid;grid-template-columns:1fr auto;align-items:center;gap:1rem;margin-bottom:1rem;}
+  .detected-lbl{font-size:11px;font-family:var(--mono);letter-spacing:.1em;color:var(--text3);text-transform:uppercase;margin-bottom:4px;}
+  .detected-note{font-family:var(--mono);font-size:32px;font-weight:700;color:var(--text2);line-height:1;transition:color .2s;}
+  .detected-note.match{color:var(--correct);}
+  .detected-note.mismatch{color:var(--wrong);}
+  .detected-right{text-align:right;}
+  .detected-hz{font-family:var(--mono);font-size:14px;color:var(--text2);line-height:1;margin-bottom:4px;}
+  .detected-cents{font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.04em;}
+
+  /* status */
+  .status-bar{border-radius:4px;padding:10px 14px;font-size:13px;font-family:var(--mono);letter-spacing:.04em;display:flex;align-items:center;gap:8px;margin-bottom:1rem;border:0.5px solid var(--border);color:var(--text3);background:var(--surface);transition:all .25s;min-height:42px;}
+  .status-bar.listening{border-color:rgba(71,255,184,.3);color:var(--accent2);background:rgba(71,255,184,.05);}
+  .status-bar.correct{border-color:rgba(71,255,184,.5);color:var(--correct);background:rgba(71,255,184,.08);}
+  .status-bar.wrong{border-color:rgba(255,107,71,.3);color:var(--wrong);background:rgba(255,107,71,.05);}
+  .mic-dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);flex-shrink:0;animation:blink 1s infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
+
+  /* buttons */
+  .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1.5rem;}
+  .btn{padding:12px 16px;border-radius:4px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn:hover{border-color:var(--text2);color:var(--text);}
+  .btn:active{transform:scale(.98);}
+  .btn-accent{background:var(--accent);color:var(--bg);border-color:var(--accent);}
+  .btn-accent:hover{background:#d4eb3f;border-color:#d4eb3f;color:var(--bg);}
+  .btn-stop{border-color:rgba(255,107,71,.4);color:var(--wrong);}
+  .btn-stop:hover{border-color:var(--wrong);background:rgba(255,107,71,.08);}
+
+  /* score */
+  .score-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem;}
+  .score-card{background:var(--surface);border:0.5px solid var(--border);border-radius:4px;padding:.75rem 1rem;text-align:center;}
+  .score-num{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--text);line-height:1;margin-bottom:5px;}
+  .score-lbl{font-size:11px;font-family:var(--mono);letter-spacing:.1em;color:var(--text3);text-transform:uppercase;}
+
+  /* coming soon */
+  .coming-soon{background:var(--surface);border:0.5px dashed var(--border2);border-radius:4px;padding:3rem 2rem;text-align:center;margin-bottom:1rem;}
+  .cs-label{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--text3);text-transform:uppercase;}
+
+  /* ring */
+  @keyframes ring-grow{from{transform:scale(.8);opacity:.8;}to{transform:scale(1.4);opacity:0;}}
+  .confirm-ring{position:absolute;inset:0;border:2px solid var(--correct);border-radius:4px;pointer-events:none;animation:ring-grow .6s ease-out forwards;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <span class="header-title">Guitar Note Trainer</span>
+    <span class="header-sub">ฝึกจำตำแหน่งโน๊ตบนคอกีต้าร์</span>
+  </div>
+
+  <!-- Mode tabs -->
+  <div class="mode-row">
+    <button class="mode-btn active" onclick="setMode('simple')" id="tab-simple">7 Note</button>
+    <button class="mode-btn" onclick="setMode('fretboard')" id="tab-fretboard">Fretboard</button>
+    <button class="mode-btn soon" id="tab-soon">Coming Soon</button>
+  </div>
+
+  <!-- Note display -->
+  <div class="note-display" id="note-display">
+    <div class="note-prompt" id="note-prompt">// โน๊ตที่ต้องเล่น</div>
+    <div class="note-big" id="target-note">?</div>
+    <div class="note-alias" id="target-alias">— กด ROLL เพื่อเริ่ม —</div>
+  </div>
+
+  <!-- Fretboard progress dots (mode: fretboard only) -->
+  <div class="fb-progress" id="fb-progress" style="display:none;">
+    <div class="fb-prog-head">
+      <span class="fb-prog-lbl">// ตำแหน่งที่เหลือ</span>
+      <span class="fb-prog-count" id="fb-prog-count">0 / 0</span>
+    </div>
+    <div class="fb-dots" id="fb-dots"></div>
+  </div>
+
+  <!-- Fretboard SVG (mode: fretboard only) -->
+  <div class="fretboard-wrap" id="fretboard-wrap" style="display:none;">
+    <div class="fretboard-lbl">// ตำแหน่งบนคอกีต้าร์</div>
+    <svg class="fretboard-svg" id="fretboard-svg" viewBox="0 0 480 140" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <!-- Waveform -->
+  <div class="waveform">
+    <div class="wv-bar" style="height:4px"></div><div class="wv-bar" style="height:8px"></div>
+    <div class="wv-bar" style="height:14px"></div><div class="wv-bar" style="height:10px"></div>
+    <div class="wv-bar" style="height:20px"></div><div class="wv-bar" style="height:14px"></div>
+    <div class="wv-bar" style="height:8px"></div><div class="wv-bar" style="height:16px"></div>
+    <div class="wv-bar" style="height:22px"></div><div class="wv-bar" style="height:14px"></div>
+    <div class="wv-bar" style="height:8px"></div><div class="wv-bar" style="height:18px"></div>
+    <div class="wv-bar" style="height:12px"></div><div class="wv-bar" style="height:6px"></div>
+    <div class="wv-bar" style="height:10px"></div><div class="wv-bar" style="height:6px"></div>
+    <div class="wv-bar" style="height:4px"></div><div class="wv-bar" style="height:8px"></div>
+    <div class="wv-bar" style="height:12px"></div><div class="wv-bar" style="height:8px"></div>
+  </div>
+
+  <!-- Detected -->
+  <div class="detected-panel">
+    <div>
+      <div class="detected-lbl">// ตรวจจับได้</div>
+      <div class="detected-note" id="detected-note">—</div>
+    </div>
+    <div class="detected-right">
+      <div class="detected-hz" id="detected-hz">— Hz</div>
+      <div class="detected-cents" id="detected-cents"></div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar" id="status-bar">
+    <span style="font-size:16px;">◦</span><span>ยังไม่ได้เปิดไมค์</span>
+  </div>
+
+  <!-- Buttons -->
+  <div class="btn-row">
+    <button class="btn btn-accent" onclick="rollNote()" id="btn-roll">⟳ ROLL</button>
+    <button class="btn" onclick="startListening()" id="btn-start">● REC</button>
+    <button class="btn btn-stop" onclick="stopListening()" id="btn-stop" style="display:none;grid-column:2;">■ STOP</button>
+  </div>
+
+  <!-- Score -->
+  <div class="score-row">
+    <div class="score-card"><div class="score-num" id="sc-correct">0</div><div class="score-lbl">ถูก</div></div>
+    <div class="score-card"><div class="score-num" id="sc-total">0</div><div class="score-lbl">รวม</div></div>
+    <div class="score-card"><div class="score-num" id="sc-pct">—</div><div class="score-lbl">แม่น</div></div>
+  </div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════ */
+const NOTES_ALL  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NOTES_7    = ['C','D','E','F','G','A','B'];
+const ALIASES    = {'C#':'D♭','D#':'E♭','F#':'G♭','G#':'A♭','A#':'B♭'};
+const OPEN_NOTES = ['E','A','D','G','B','E']; // string index 0=low E .. 5=high e
+
+// Build full fretboard map: FRETBOARD[stringIdx][fret] = noteName
+const FRETBOARD = OPEN_NOTES.map(open => {
+  const start = NOTES_ALL.indexOf(open);
+  return Array.from({length:13}, (_,f) => NOTES_ALL[(start+f)%12]);
+});
+
+// All positions (string, fret, note, octave) for a given note across full neck
+function getPositionsForNote(noteName) {
+  const positions = [];
+  // MIDI of open string: string 0 (low E) = E2=40, A2=45, D3=50, G3=55, B3=59, E4=64
+  const openMidi = [40,45,50,55,59,64];
+  for (let s=0;s<6;s++) {
+    for (let f=0;f<=12;f++) {
+      if (FRETBOARD[s][f] === noteName) {
+        const midi = openMidi[s] + f;
+        const oct  = Math.floor(midi/12) - 1;
+        positions.push({s, f, note:noteName, oct, id:`${s}-${f}`});
+      }
+    }
+  }
+  return positions;
+}
+
+/* ═══════════════════════════════════
+   STATE
+═══════════════════════════════════ */
+let currentMode = 'simple'; // 'simple' | 'fretboard'
+
+// simple mode
+let targetNote   = null;
+
+// fretboard mode
+let fbNoteQueue    = [];   // remaining 7-note names to cover
+let fbCurrentNote  = null; // current note name being practiced
+let fbPositions    = [];   // all positions on neck for current note
+let fbRemaining    = [];   // positions not yet played
+let fbDone         = [];   // positions played this note
+let fbCurrentPos   = null; // the one position we're waiting for right now
+
+// shared
+let audioCtx=null, analyser=null, sourceNode=null, stream=null;
+let isListening=false, isFrozen=false;
+let animFrameId=null, waveAnimId=null;
+let matchHoldCount=0, lastDetected=null;
+let correctCount=0, totalCount=0;
+
+/* ═══════════════════════════════════
+   MODE SWITCH
+═══════════════════════════════════ */
+function setMode(m) {
+  if (m === 'soon') return;
+  currentMode = m;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+m).classList.add('active');
+
+  const isFB = m === 'fretboard';
+  document.getElementById('fb-progress').style.display   = isFB ? 'block' : 'none';
+  document.getElementById('fretboard-wrap').style.display = isFB ? 'block' : 'none';
+  document.getElementById('btn-roll').style.display = isFB ? 'none' : 'flex';
+
+  // reset
+  targetNote=null; fbNoteQueue=[]; fbCurrentNote=null;
+  fbPositions=[]; fbRemaining=[]; fbDone=[]; fbCurrentPos=null;
+  isFrozen=false; matchHoldCount=0; lastDetected=null;
+  correctCount=0; totalCount=0;
+  document.getElementById('sc-correct').textContent='0';
+  document.getElementById('sc-total').textContent='0';
+  document.getElementById('sc-pct').textContent='—';
+  resetNoteDisplay();
+
+  if (isFB) {
+    startFretboardSession();
+  } else {
+    document.getElementById('target-alias').textContent='— กด ROLL เพื่อเริ่ม —';
+    document.getElementById('target-note').textContent='?';
+    if (isListening) setStatus('listening','กำลังฟัง...');
+    else setStatus('idle','ยังไม่ได้เปิดไมค์');
+  }
+}
+
+/* ═══════════════════════════════════
+   SIMPLE MODE
+═══════════════════════════════════ */
+function rollNote() {
+  const list = NOTES_7;
+  let n;
+  let tries=0;
+  do { n=list[Math.floor(Math.random()*list.length)]; tries++; }
+  while (n===targetNote && list.length>1 && tries<20);
+  targetNote = n;
+
+  const el = document.getElementById('target-note');
+  el.textContent=n; el.className='note-big';
+  document.getElementById('target-alias').textContent =
+    ALIASES[n]?`(หรือ ${ALIASES[n]})`:`โน๊ต ${n}`;
+  resetDetected();
+  matchHoldCount=0; lastDetected=null;
+  if(isFrozen) isFrozen=false;
+  if(isListening) setStatus('listening',`กำลังฟัง... เล่นโน๊ต ${n}`);
+}
+
+/* ═══════════════════════════════════
+   FRETBOARD MODE
+═══════════════════════════════════ */
+function startFretboardSession() {
+  // shuffle 7 notes
+  fbNoteQueue = [...NOTES_7].sort(()=>Math.random()-.5);
+  loadNextFbNote();
+}
+
+function loadNextFbNote() {
+  if (fbNoteQueue.length === 0) {
+    // all 7 notes done — restart
+    startFretboardSession();
+    return;
+  }
+  fbCurrentNote = fbNoteQueue.shift();
+  fbPositions   = getPositionsForNote(fbCurrentNote);
+  fbRemaining   = [...fbPositions].sort(()=>Math.random()-.5);
+  fbDone        = [];
+  fbCurrentPos  = null;
+
+  const el = document.getElementById('target-note');
+  el.textContent = fbCurrentNote;
+  el.className   = 'note-big';
+  document.getElementById('target-alias').textContent =
+    `ไล่ ${fbCurrentNote} ให้ครบทุกตำแหน่งบนคอ (${fbPositions.length} จุด)`;
+
+  matchHoldCount=0; lastDetected=null; isFrozen=false;
+  pickNextFbPosition();
+}
+
+function pickNextFbPosition() {
+  if (fbRemaining.length === 0) {
+    // all positions done for this note
+    onNoteFullyComplete();
+    return;
+  }
+  fbCurrentPos = fbRemaining.shift();
+  renderFbProgress();
+  drawFretboard(fbCurrentNote, fbCurrentPos, fbDone);
+  const pos = fbCurrentPos;
+  if(isListening) setStatus('listening',
+    `เล่น ${pos.note}${pos.oct} — สาย ${stringName(pos.s)}, เฟรต ${pos.f}`);
+}
+
+function onPositionCorrect() {
+  isFrozen = true;
+  matchHoldCount=0; lastDetected=null;
+
+  fbDone.push(fbCurrentPos);
+  totalCount++; correctCount++;
+  updateScore();
+  renderFbProgress();
+  drawFretboard(fbCurrentNote, null, fbDone);
+
+  const el = document.getElementById('target-note');
+  el.classList.add('correct');
+  flashRing();
+  recordCounts();
+
+  const steps=[
+    {t:0,   msg:`✓ ${fbCurrentPos.note}${fbCurrentPos.oct} — สาย ${stringName(fbCurrentPos.s)} เฟรต ${fbCurrentPos.f}`, type:'correct'},
+    {t:700, msg:`⏱ ตำแหน่งถัดไปใน 2...`, type:'correct'},
+    {t:1300,msg:`⏱ ตำแหน่งถัดไปใน 1...`, type:'correct'},
+  ];
+  steps.forEach(s=>setTimeout(()=>setStatus(s.type,s.msg),s.t));
+
+  setTimeout(()=>{
+    if(!isListening) return;
+    el.classList.remove('correct');
+    isFrozen=false;
+    pickNextFbPosition();
+  },2000);
+}
+
+function onNoteFullyComplete() {
+  isFrozen=true;
+  const n = fbCurrentNote;
+  setStatus('correct',`✓ ${n} ครบทุกตำแหน่ง! (${fbPositions.length}/${fbPositions.length})`);
+  document.getElementById('target-note').classList.add('correct');
+  flashRing();
+
+  setTimeout(()=>{
+    document.getElementById('target-note').classList.remove('correct');
+    isFrozen=false;
+    loadNextFbNote();
+  }, 2500);
+}
+
+function renderFbProgress() {
+  const allPos = fbPositions;
+  const doneIds = new Set(fbDone.map(p=>p.id));
+  const curId   = fbCurrentPos ? fbCurrentPos.id : null;
+  const done    = fbDone.length;
+  const total   = allPos.length;
+
+  document.getElementById('fb-prog-count').textContent = `${done} / ${total}`;
+
+  const dotsEl = document.getElementById('fb-dots');
+  dotsEl.innerHTML = allPos.map(p=>{
+    const isDone    = doneIds.has(p.id);
+    const isCurrent = p.id === curId;
+    let cls = 'fb-dot';
+    if(isDone)    cls+=' done';
+    if(isCurrent) cls+=' current';
+    return `<div class="${cls}"><span>${p.note}${p.oct}</span><span>${stringName(p.s)}·${p.f}</span></div>`;
+  }).join('');
+}
+
+function stringName(s) {
+  // s=0 low E, s=5 high e
+  return ['E','A','D','G','B','e'][s];
+}
+
+/* ═══════════════════════════════════
+   FRETBOARD SVG
+═══════════════════════════════════ */
+function drawFretboard(note, currentPos, donePositions) {
+  const svg  = document.getElementById('fretboard-svg');
+  const W=480, H=140, LEFT=36, RIGHT=W-10, TOP=18, BOT=H-18;
+  const FRETS=12, STRINGS=6;
+  const fretW  = (RIGHT-LEFT)/FRETS;
+  const stringH = (BOT-TOP)/(STRINGS-1);
+  const MARKERS=[3,5,7,9,12];
+  const S_NAMES_TOP=['e','B','G','D','A','E']; // top=high e
+
+  const doneIds   = new Set((donePositions||[]).map(p=>p.id));
+  const currentId = currentPos ? currentPos.id : null;
+
+  let h='';
+  h+=`<rect x="0" y="0" width="${W}" height="${H}" fill="#161619"/>`;
+  h+=`<rect x="${LEFT-3}" y="${TOP}" width="4" height="${BOT-TOP}" fill="#555568" rx="1"/>`;
+
+  // fret lines
+  for(let f=0;f<=FRETS;f++){
+    const x=LEFT+f*fretW;
+    h+=`<line x1="${x}" y1="${TOP}" x2="${x}" y2="${BOT}" stroke="#3a3a46" stroke-width="${f===12?2:.5}"/>`;
+  }
+  // fret numbers
+  for(let f=1;f<=FRETS;f++){
+    const x=LEFT+(f-.5)*fretW;
+    h+=`<text x="${x}" y="${H-3}" text-anchor="middle" font-family="'Space Mono',monospace" font-size="8" fill="#555568">${f}</text>`;
+  }
+  // dot markers
+  MARKERS.forEach(f=>{
+    const x=LEFT+(f-.5)*fretW, cy=TOP+(BOT-TOP)/2;
+    if(f===12){
+      h+=`<circle cx="${x}" cy="${cy-7}" r="3" fill="#2a2a32"/>`;
+      h+=`<circle cx="${x}" cy="${cy+7}" r="3" fill="#2a2a32"/>`;
+    } else {
+      h+=`<circle cx="${x}" cy="${cy}" r="3" fill="#2a2a32"/>`;
+    }
+  });
+  // strings
+  for(let s=0;s<STRINGS;s++){
+    const y=TOP+s*stringH;
+    const sIdx=STRINGS-1-s; // 0=low E at bottom
+    const thickness=.5+(5-sIdx)*.3;
+    h+=`<line x1="${LEFT}" y1="${y}" x2="${RIGHT}" y2="${y}" stroke="#3a3a46" stroke-width="${thickness}"/>`;
+    h+=`<text x="${LEFT-8}" y="${y+4}" text-anchor="middle" font-family="'Space Mono',monospace" font-size="9" fill="#555568">${S_NAMES_TOP[s]}</text>`;
+  }
+
+  // dots: show all positions of target note
+  if(note){
+    for(let s=0;s<STRINGS;s++){
+      const sIdx=STRINGS-1-s;
+      const y=TOP+s*stringH;
+      for(let f=0;f<=FRETS;f++){
+        if(FRETBOARD[sIdx][f]!==note) continue;
+        const id=`${sIdx}-${f}`;
+        const cx = f===0 ? LEFT-1 : LEFT+(f-.5)*fretW;
+        const isCur  = id===currentId;
+        const isDone = doneIds.has(id);
+
+        let fill, textFill, stroke='none', sw=0;
+        if(isDone){
+          fill='rgba(71,255,184,0.2)'; textFill='#47ffb8'; stroke='#47ffb8'; sw=1.5;
+        } else if(isCur){
+          fill='#e8ff47'; textFill='#0d0d0f';
+        } else {
+          fill='#2a2a32'; textFill='#555568';
+        }
+        h+=`<circle cx="${cx}" cy="${y}" r="10" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+        if(isDone){
+          // checkmark
+          h+=`<text x="${cx}" y="${y+4}" text-anchor="middle" font-family="'Space Mono',monospace" font-size="10" fill="${textFill}">✓</text>`;
+        } else {
+          h+=`<text x="${cx}" y="${y+3}" text-anchor="middle" font-family="'Space Mono',monospace" font-size="8" font-weight="700" fill="${textFill}">${f}</text>`;
+        }
+      }
+    }
+  }
+  svg.innerHTML=h;
+}
+
+/* ═══════════════════════════════════
+   AUDIO
+═══════════════════════════════════ */
+async function startListening(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    analyser=audioCtx.createAnalyser();
+    analyser.fftSize=2048;
+    sourceNode=audioCtx.createMediaStreamSource(stream);
+    sourceNode.connect(analyser);
+    isListening=true;
+    document.getElementById('btn-start').style.display='none';
+    document.getElementById('btn-stop').style.display='flex';
+
+    if(currentMode==='simple'){
+      setStatus('listening', targetNote?`กำลังฟัง... เล่นโน๊ต ${targetNote}`:'กำลังฟัง...');
+    } else if(currentMode==='fretboard' && fbCurrentPos){
+      const p=fbCurrentPos;
+      setStatus('listening',`เล่น ${p.note}${p.oct} — สาย ${stringName(p.s)}, เฟรต ${p.f}`);
+    } else {
+      setStatus('listening','กำลังฟัง...');
+    }
+    startWaveAnim();
+    detectLoop();
+  }catch(e){
+    setStatus('idle','ไม่สามารถเข้าถึงไมค์ได้ — กรุณาอนุญาตสิทธิ์');
+  }
+}
+
+function stopListening(){
+  isListening=false; isFrozen=false;
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  if(audioCtx){audioCtx.close();audioCtx=null;}
+  cancelAnimationFrame(animFrameId);
+  cancelAnimationFrame(waveAnimId);
+  analyser=sourceNode=stream=null;
+  document.getElementById('btn-start').style.display='flex';
+  document.getElementById('btn-stop').style.display='none';
+  document.querySelectorAll('.wv-bar').forEach(b=>{b.style.height='4px';b.classList.remove('active');});
+  setStatus('idle','หยุดรับฟังแล้ว');
+}
+
+function detectLoop(){
+  if(!isListening||!analyser) return;
+  if(isFrozen){animFrameId=requestAnimationFrame(detectLoop);return;}
+
+  const buf=new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+  const freq=autoCorrelate(buf,audioCtx.sampleRate);
+
+  if(freq>0){
+    const result=freqToNote(freq);
+    if(result){
+      const dn=document.getElementById('detected-note');
+      dn.textContent=result.name+result.oct;
+      document.getElementById('detected-hz').textContent=Math.round(freq)+' Hz';
+      const c=result.cents;
+      document.getElementById('detected-cents').textContent=
+        c===0?'ตรง ✓':(c>0?`+${c}¢ สูงเล็กน้อย`:`${c}¢ ต่ำเล็กน้อย`);
+
+      if(currentMode==='simple' && targetNote){
+        if(result.name===targetNote){
+          dn.className='detected-note match';
+          if(lastDetected===targetNote) matchHoldCount++;
+          else{matchHoldCount=1;lastDetected=result.name;}
+          if(matchHoldCount>=7) onSimpleCorrect(result.name,result.oct);
+          else setStatus('listening',`กำลังยืนยัน ${result.name}${'·'.repeat(matchHoldCount)}`);
+        } else {
+          dn.className='detected-note mismatch';
+          matchHoldCount=0; lastDetected=result.name;
+          setStatus('wrong',`ได้ยิน ${result.name} — ต้องการ ${targetNote}`);
+        }
+      } else if(currentMode==='fretboard' && fbCurrentPos){
+        const target=fbCurrentPos;
+        const noteMatch = result.name===target.note;
+        const octMatch  = result.oct===target.oct;
+        if(noteMatch && octMatch){
+          dn.className='detected-note match';
+          if(lastDetected===target.id) matchHoldCount++;
+          else{matchHoldCount=1;lastDetected=target.id;}
+          if(matchHoldCount>=7) onPositionCorrect();
+          else setStatus('listening',`กำลังยืนยัน ${result.name}${result.oct}${'·'.repeat(matchHoldCount)}`);
+        } else if(noteMatch && !octMatch){
+          dn.className='detected-note mismatch';
+          matchHoldCount=0; lastDetected=result.name+result.oct;
+          setStatus('wrong',`โน๊ตถูก แต่ Octave ผิด — ต้องการ ${target.note}${target.oct} (สาย ${stringName(target.s)} เฟรต ${target.f})`);
+        } else {
+          dn.className='detected-note mismatch';
+          matchHoldCount=0; lastDetected=result.name+result.oct;
+          setStatus('wrong',`ได้ยิน ${result.name}${result.oct} — ต้องการ ${target.note}${target.oct}`);
+        }
+      }
+    }
+  } else {
+    if(isListening){
+      if(currentMode==='simple'&&targetNote) setStatus('listening',`กำลังฟัง... เล่นโน๊ต ${targetNote}`);
+      else if(currentMode==='fretboard'&&fbCurrentPos) setStatus('listening',`เล่น ${fbCurrentPos.note}${fbCurrentPos.oct} — สาย ${stringName(fbCurrentPos.s)}, เฟรต ${fbCurrentPos.f}`);
+    }
+  }
+  animFrameId=requestAnimationFrame(detectLoop);
+}
+
+/* simple correct */
+function onSimpleCorrect(name,oct){
+  isFrozen=true;
+  matchHoldCount=0; lastDetected=null;
+  totalCount++; correctCount++;
+  updateScore();
+
+  const el=document.getElementById('target-note');
+  el.classList.add('correct');
+  flashRing();
+  recordCounts();
+
+  const steps=[
+    {t:0,   msg:`✓ ถูกต้อง! ${name}${oct}`, type:'correct'},
+    {t:700, msg:`⏱ โน๊ตถัดไปใน 3...`,      type:'correct'},
+    {t:1000,msg:`⏱ โน๊ตถัดไปใน 2...`,      type:'correct'},
+    {t:1400,msg:`⏱ โน๊ตถัดไปใน 1...`,      type:'correct'},
+  ];
+  steps.forEach(s=>setTimeout(()=>setStatus(s.type,s.msg),s.t));
+  setTimeout(()=>{
+    if(!isListening) return;
+    el.classList.remove('correct');
+    isFrozen=false;
+    rollNote();
+  },2000);
+}
+
+/* ═══════════════════════════════════
+   PITCH
+═══════════════════════════════════ */
+function autoCorrelate(buf,sr){
+  const SIZE=buf.length,MAX=Math.floor(SIZE/2);
+  let rms=0;
+  for(let i=0;i<SIZE;i++) rms+=buf[i]*buf[i];
+  rms=Math.sqrt(rms/SIZE);
+  if(rms<0.01) return -1;
+  let r1=0,r2=SIZE-1;
+  for(let i=0;i<SIZE/2;i++){if(Math.abs(buf[i])<.2){r1=i;break;}}
+  for(let i=1;i<SIZE/2;i++){if(Math.abs(buf[SIZE-i])<.2){r2=SIZE-i;break;}}
+  const b=buf.slice(r1,r2+1);
+  const c=new Float32Array(MAX);
+  for(let i=0;i<MAX;i++) for(let j=0;j<MAX;j++) if(b[j]!==undefined&&b[j+i]!==undefined) c[i]+=b[j]*b[j+i];
+  let d=0; while(c[d]>c[d+1]) d++;
+  let mx=-1,pos=-1;
+  for(let i=d;i<MAX;i++) if(c[i]>mx){mx=c[i];pos=i;}
+  if(pos<1) return -1;
+  let T0=pos;
+  const x1=c[T0-1],x2=c[T0],x3=c[T0+1];
+  const a=(x1+x3-2*x2)/2;
+  if(a) T0-=(x3-x1)/(2*2*a);
+  return sr/T0;
+}
+
+function freqToNote(freq){
+  if(freq<70||freq>1050) return null;
+  const semis=12*Math.log2(freq/440);
+  const midi=Math.round(semis)+69;
+  const idx=((midi%12)+12)%12;
+  const oct=Math.floor(midi/12)-1;
+  const cents=Math.round((semis-(midi-69))*100);
+  return{name:NOTES_ALL[idx],oct,cents};
+}
+
+/* ═══════════════════════════════════
+   HELPERS
+═══════════════════════════════════ */
+function startWaveAnim(){
+  const bars=document.querySelectorAll('.wv-bar');
+  function frame(){
+    if(!isListening) return;
+    if(analyser){
+      const data=new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(data);
+      bars.forEach((b,i)=>{
+        const v=data[Math.floor(i*data.length/bars.length/5)];
+        b.style.height=(4+Math.round((v/255)*28))+'px';
+        b.classList.toggle('active',v>30);
+      });
+    }
+    waveAnimId=requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+function setStatus(type,txt){
+  const bar=document.getElementById('status-bar');
+  bar.className='status-bar '+type;
+  const dot=type==='listening'?'<div class="mic-dot"></div>':'<span style="font-size:16px">◦</span>';
+  bar.innerHTML=dot+'<span>'+txt+'</span>';
+}
+
+function resetDetected(){
+  document.getElementById('detected-note').textContent='—';
+  document.getElementById('detected-note').className='detected-note';
+  document.getElementById('detected-hz').textContent='— Hz';
+  document.getElementById('detected-cents').textContent='';
+}
+
+function resetNoteDisplay(){
+  document.getElementById('target-note').textContent='?';
+  document.getElementById('target-note').className='note-big';
+  document.getElementById('target-alias').textContent='';
+  resetDetected();
+}
+
+function flashRing(){
+  const ring=document.createElement('div');
+  ring.className='confirm-ring';
+  document.getElementById('note-display').appendChild(ring);
+  setTimeout(()=>ring.remove(),700);
+}
+
+function updateScore(){
+  document.getElementById('sc-correct').textContent=correctCount;
+  document.getElementById('sc-total').textContent=totalCount;
+  document.getElementById('sc-pct').textContent=Math.round(correctCount/totalCount*100)+'%';
+}
+
+function recordCounts(){
+  // placeholder for future history if needed
+}
+
+/* init */
+setMode('simple');
+</script>
+</body>
+</html>
